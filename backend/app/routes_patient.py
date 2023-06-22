@@ -5,6 +5,9 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_cors import cross_origin
 from datetime import date
+from apscheduler.schedulers.background import BackgroundScheduler
+scheduler = BackgroundScheduler()
+
 
 @app.route("/api/mobile/confirm_patient", methods=['POST'])
 @cross_origin()
@@ -97,6 +100,7 @@ def login_patient_on_app():
 
 @app.route("/api/mobile/sessions", methods=['POST'])
 @cross_origin()
+@scheduler.scheduled_job('cron', hour=0)
 def create_sessions():
     current_date = date.today().strftime('%d-%m-%Y')
 
@@ -108,6 +112,9 @@ def create_sessions():
         db.session.commit()
 
     return make_response(jsonify({'message': 'Session créée avec succès'}), 200)
+
+
+scheduler.start()
 
 
 @app.route("/api/mobile/exercices/<exercise_id>/complete", methods=["POST"])
