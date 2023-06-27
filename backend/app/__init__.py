@@ -26,4 +26,4 @@ cors = CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 migrate = Migrate(app, db)
 jwt = JWTManager(app)
 
-from app import routes, routes_patient, routes_pathologies, models
+from app import routes, routes_patient, routes_pathologies, routes_session, routes_exercices, models

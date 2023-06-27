@@ -117,12 +117,12 @@ class RehabilitationProgram(db.Model):
     start_date = db.Column(db.DateTime, default=datetime.utcnow)
     duration = db.Column(db.Integer, nullable=False)
     pathology_id = db.Column(db.Integer, db.ForeignKey('pathology.id'))
+    steps = db.relationship('RehabilitationProgramStep', backref='rehabilitation_program', lazy=True)
 
-    def __init__(self, name, description, start_date, duration, pathology_id):
+    def __init__(self, name, description, start_date, pathology_id):
         self.name = name
         self.description = description
         self.start_date = start_date
-        self.duration = duration
         self.pathology_id = pathology_id
 
 
@@ -130,12 +130,15 @@ class RehabilitationProgramStep(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     duration = db.Column(db.Integer, nullable=False)
+    rehabilitation_step_finished = db.Column(db.Boolean, default=False)
+    step_number = db.Column(db.Integer)
     rehabilitation_program_id = db.Column(db.Integer, db.ForeignKey('rehabilitation_program.id'))
     exercises = db.relationship('Exercise', secondary='program_exercise')
 
-    def __init__(self, name, duration, rehabilitation_program_id):
+    def __init__(self, name, duration, step_number, rehabilitation_program_id):
         self.name = name
         self.duration = duration
+        self.step_number = step_number
         self.rehabilitation_program_id = rehabilitation_program_id
 
 
@@ -160,12 +163,16 @@ class ProgramExercise(db.Model):
 
 class Session(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    date = db.column(db.String)
+    date = db.Column(db.String)
+    number_of_days = db.Column(db.Integer, default= 1)
     completed = db.Column(db.Boolean, default=False)
     survey_completed = db.Column(db.Boolean, default=False)
+    current_step = db.Column(db.Integer, default= 1)
     rehabilitation_program_id = db.Column(db.Integer, db.ForeignKey('rehabilitation_program.id'))
     patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'))
 
+    def __init__(self, patient_id):
+        self.patient_id = patient_id
 
 class ExerciseUsage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
