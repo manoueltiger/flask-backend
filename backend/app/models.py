@@ -1,5 +1,6 @@
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.orm import joinedload
 from datetime import datetime
 
 
@@ -43,16 +44,18 @@ class Patient(db.Model):
     lastname = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(50))
     ssn = db.Column(db.BigInteger, nullable=False)
-    birthdate = db.Column(db.String)
+    birthdate = db.Column(db.Date)
+    registration_date = db.Column(db.DateTime, default=datetime.utcnow())
     phone = db.Column(db.String(20))
     password = db.Column(db.String)
-    rehabilitation_in_progress = db.Column(db.Boolean, default=True)
+    rehabilitation_in_progress = db.Column(db.Boolean, default=False)
     pathology_id = db.Column(db.Integer, db.ForeignKey('pathology.id'))
+    medical_care_id = db.Column(db.Integer, db.ForeignKey('medical_care.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    pathology = db.relationship('Pathology')
-    program = db.relationship('RehabilitationProgram')
+    medical_care = db.relationship('MedicalCare', backref='medical_cares')
+    pathology = db.relationship('Pathology', backref='patients')
 
-    def __init__(self, firstname, lastname, email, phone, password, ssn, birthdate, pathology_id, user_id):
+    def __init__(self, firstname, lastname, email, phone, password, ssn, birthdate, pathology_id, medical_care_id, user_id):
         self.firstname = firstname
         self.lastname = lastname
         self.email = email
@@ -61,6 +64,7 @@ class Patient(db.Model):
         self.ssn = ssn
         self.birthdate = birthdate
         self.pathology_id = pathology_id
+        self.medical_care_id = medical_care_id
         self.user_id = user_id
 
     def __delete__(self):
@@ -96,6 +100,7 @@ class LocationPathology(db.Model):
 class Pathology(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
+    medical_care = db.relationship('MedicalCare', backref='medical_care')
     location_pathology_id = db.Column(db.Integer, db.ForeignKey('location_pathology.id'), nullable=False)
 
     def __init__(self, name, location_pathology_id):
@@ -109,28 +114,41 @@ class Pathology(db.Model):
             'location_pathology_id': self.location_pathology_id
         }
 
+class MedicalCare(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    rehabilitation_program = db.relationship('RehabilitationProgram', backref='rehabilitation_program')
+    pathology_id = db.Column(db.Integer, db.ForeignKey('pathology.id'))
+
+    def __init__(self, name, pathology_id):
+        self.name = name
+        self.pathology_id = pathology_id
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'pathology_id': self.pathology_id
+        }
 
 class RehabilitationProgram(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=False)
     description = db.Column(db.Text, nullable=False)
-    start_date = db.Column(db.DateTime, default=datetime.utcnow)
     duration = db.Column(db.Integer, nullable=False)
-    pathology_id = db.Column(db.Integer, db.ForeignKey('pathology.id'))
+    medical_care_id = db.Column(db.Integer, db.ForeignKey('medical_care.id'))
     steps = db.relationship('RehabilitationProgramStep', backref='rehabilitation_program', lazy=True)
 
-    def __init__(self, name, description, start_date, pathology_id):
+    def __init__(self, name, description, medical_care_id, duration):
         self.name = name
         self.description = description
-        self.start_date = start_date
-        self.pathology_id = pathology_id
-
+        self.medical_care_id = medical_care_id
+        self.duration = duration
 
 class RehabilitationProgramStep(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
     duration = db.Column(db.Integer, nullable=False)
-    rehabilitation_step_finished = db.Column(db.Boolean, default=False)
     step_number = db.Column(db.Integer)
     rehabilitation_program_id = db.Column(db.Integer, db.ForeignKey('rehabilitation_program.id'))
     exercises = db.relationship('Exercise', secondary='program_exercise')
@@ -141,19 +159,31 @@ class RehabilitationProgramStep(db.Model):
         self.step_number = step_number
         self.rehabilitation_program_id = rehabilitation_program_id
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'duration': self.duration,
+            'step_number': self.step_number,
+            'rehabilitation_program_id': self.rehabilitation_program_id
+        }
+
 
 class Exercise(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String, nullable=False)
     description = db.Column(db.Text, nullable=False)
     video_link = db.Column(db.String, nullable=False)
-    duration = db.Column(db.Integer, nullable=False)
+    duration = db.Column(db.Integer)
+    iteration = db.Column(db.Integer)
 
-    def __init__(self, title, description, video_link, duration):
+
+    def __init__(self, title, description, video_link, duration, iteration):
         self.title = title
         self.description = description
         self.duration = duration
         self.video_link = video_link
+        self.iteration = iteration
 
 
 class ProgramExercise(db.Model):
@@ -171,10 +201,17 @@ class Session(db.Model):
     rehabilitation_program_id = db.Column(db.Integer, db.ForeignKey('rehabilitation_program.id'))
     patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'))
 
-    def __init__(self, patient_id):
+    def __init__(self, patient_id, rehabilitation_program_id, date):
         self.patient_id = patient_id
+        self.rehabilitation_program_id = rehabilitation_program_id
+        self.date = date
+        self.number_of_days = 1
+        self.current_step = 1
+        self.completed = False
+        self.survey_completed = False
 
-class ExerciseUsage(db.Model):
+
+class ExerciseSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('session.id'), nullable=False)
     exercise_id = db.Column(db.Integer, db.ForeignKey('exercise.id'), nullable=False)

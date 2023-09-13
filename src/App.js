@@ -16,6 +16,7 @@ import Statistics from './pages/Statistics';
 import Patients from './pages/Patients';
 import Programs from './pages/Programs';
 import RegisterConfirmation from './components/auth/RegisterConfirmation';
+import CreatePatient from './components/patient/CreatePatient';
 
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
             <Route path='statistics' element={<Statistics />} />
             <Route path='patients' element={<Patients />}/>
             <Route path="patients/:patientId" element={<EditPatient />} />
+            <Route path='patients/newPatient' element={<CreatePatient />} />
             <Route path='programs' element={<Programs />} />
             <Route path='settings' element={<Settings />}/>
           </Route>  

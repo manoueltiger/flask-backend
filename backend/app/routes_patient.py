@@ -1,6 +1,6 @@
 from flask import request, jsonify, make_response
 from app import app, db
-from app.models import Patient, Session, ExerciseUsage
+from app.models import Patient, Pathology, MedicalCare, Session
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_cors import cross_origin
@@ -90,34 +90,20 @@ def login_patient_on_app():
             'firstname': patient.firstname,
             'lastname': patient.lastname,
             'email': patient.email,
-            'socialSecurityNumber': patient.ssn
+            'socialSecurityNumber': patient.ssn,
+            'pathology_id': patient.pathology_id,
+            'medical_care_id': patient.medical_care_id
         }}), 200)
     except JWTExtendedException as error:
         return make_response(jsonify({'error': "Erreur lors de la création du jeton"}), 500)
 
-
-@app.route("/api/mobile/exercises/<exercise_id>/complete", methods=["POST"])
+@app.route("/api/mobile/get_pathology_and_care/<int:pathology_id>", methods=['GET'])
 @cross_origin()
-def complete_exercise(exercise_id):
-    patient_id = get_jwt_identity()
-    date = request.json.get('date', None)
+def get_pathology_and_care(pathology_id):
+    pathology = Pathology.query.get(pathology_id)
 
-    if date is None:
-        return make_response(jsonify({'error': 'Erreur dans la date envoyée dans la requête'}), 400)
+    medical_care = MedicalCare.query.filter_by(pathology_id=pathology_id).first()
 
-    session = Session.query.filter_by(patient_id=patient_id, date=date).first()
+    return make_response(jsonify({'pathology' : pathology.name, 'medical_care' : medical_care.name}))
 
-    if session is None:
-        return make_response(jsonify({'error': 'Session introuvable'}), 404)
 
-    session_id = session.id
-
-    exercise_usage = ExerciseUsage.query.filter_by(session_id=session_id, exercise_id=exercise_id).first()
-
-    if exercise_usage is None:
-        return make_response(jsonify({'error': 'la variable exerciseUsage est introuvable'}), 404)
-
-    exercise_usage.count += 1
-    db.session.commit()
-
-    return make_response(jsonify({'message': "Compteur de lecture d'exercice incrémenté avec succès"}), 200)

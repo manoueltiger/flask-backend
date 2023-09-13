@@ -1,19 +1,29 @@
 from flask import request, jsonify, make_response
 from app import app, db, mail
-from app.models import User, Patient
+from app.models import User, Patient, Pathology, MedicalCare
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_cors import cross_origin
 from flask_mail import Message
+from sqlalchemy import desc
 import random, secrets
 
 
-@app.route('/api')
+@app.route('/api', methods=['GET'])
 @cross_origin()
 def api():
     return jsonify({'message': 'API is up and running'})
 
+@app.route('/api_post', methods=["POST"])
+@cross_origin()
+def api_post():
+    family_name = request.json.get('family_name', None)
+
+    if family_name == "manu":
+        return make_response(jsonify({'message': f'Bonjour {family_name} ! API is up and running'}), 200)
+
+    return make_response(jsonify({'message': "Vous n'avez pas d'utilisateur manu enregistré dans la base !"}))
 
 @app.route("/api/login", methods=["POST"])
 @cross_origin()
@@ -28,6 +38,7 @@ def login_user():
         return make_response(jsonify({'error': 'Mot de passe manquant'}), 400)
 
     user = User.query.filter_by(email=email).first()
+    print(user.id)
 
     if user is None:
         return make_response(jsonify({"error": "Utilisateur introuvable"}), 404)
@@ -211,6 +222,7 @@ def create_patient():
     ssn = request.json.get('socialSecurityNumber', None)
     birthdate = request.json.get('birthDate', None)
     pathology_id = request.json.get('pathologyId', None)
+    medical_care_id = request.json.get('medicalCareId', None)
     user_id = request.json.get('user_id', None)
 
     patient_exists = Patient.query.filter_by(firstname=firstname, lastname=lastname, ssn=ssn).first()
@@ -221,7 +233,8 @@ def create_patient():
     password = ''.join(random.choices('0123456789', k=8))
 
     new_patient = Patient(firstname=firstname, lastname=lastname, email=email, phone=phone,
-                          password=password, ssn=ssn, birthdate=birthdate, pathology_id=pathology_id, user_id=user_id)
+                          password=password, ssn=ssn, birthdate=birthdate, pathology_id=pathology_id,
+                          medical_care_id=medical_care_id ,user_id=user_id)
 
     # construire le message du mail
     subject = "Bienvenue sur l'application de santé"
@@ -242,16 +255,46 @@ def get_user_patients(user_id):
     patients = Patient.query.filter_by(user_id=user_id).all()
     result = []
     for patient in patients:
+        medical_care = MedicalCare.query.get(patient.medical_care_id)
+        pathology = Pathology.query.get(patient.pathology_id)
         patient_data = {
             "id": patient.id,
             "firstname": patient.firstname,
             "lastname": patient.lastname,
             "socialSecurityNumber": patient.ssn,
             "email": patient.email,
-            "user_id": patient.user_id
+            "pathology_id": patient.pathology_id,
+            "medical_care_id": patient.medical_care_id,
+            "user_id": patient.user_id,
+            "medicalCare": medical_care.name if medical_care else None,
+            "pathology": pathology.name if pathology else None
         }
         result.append(patient_data)
-    return jsonify(result)
+    return make_response(jsonify(result))
+
+@app.route("/api/last_patients_order/<int:user_id>", methods=["GET"])
+@cross_origin()
+def get_user_last_patients(user_id):
+    patients = Patient.query.filter_by(user_id=user_id).order_by(desc(Patient.id)).limit(8).all()
+    result = []
+    for patient in patients:
+        medical_care = MedicalCare.query.get(patient.medical_care_id)
+        pathology = Pathology.query.get(patient.pathology_id)
+        patient_data = {
+            "id": patient.id,
+            "firstname": patient.firstname,
+            "lastname": patient.lastname,
+            "socialSecurityNumber": patient.ssn,
+            "email": patient.email,
+            "pathology_id": patient.pathology_id,
+            "medical_care_id": patient.medical_care_id,
+            "user_id": patient.user_id,
+            "medicalCare": medical_care.name if medical_care else None,
+            "pathology": pathology.name if pathology else None
+        }
+        result.append(patient_data)
+
+    return make_response(jsonify(result))
 
 @app.route("/api/patient/<int:patientId>", methods=["GET"])
 @cross_origin()
@@ -270,6 +313,7 @@ def get_patient(patientId):
         "lastname": patient.lastname,
         "email": patient.email,
         "socialSecurityNumber": patient.ssn,
+        "pathology_id": patient.pathology_id,
         "user_id": patient.user_id,
     }
     print(patient_details)
@@ -324,4 +368,5 @@ def send_mail():
     msg.body = "Test d'envoi de mail"
     mail.send(msg)
     return 'Mail envoyé !'
+
 

@@ -5,9 +5,13 @@ from config import Config
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_mail import Mail
-
+from celery import Celery
 
 app = Flask(__name__)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
 app.config.from_object(Config)
 app.config['JWT_SECRET_KEY'] = 'votre_clé_secrète_ici'
 app.config['CORS_HEADERS'] = 'Content-Type'
